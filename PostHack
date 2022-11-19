@@ -1,0 +1,906 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": []
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Загрузка библиотек и данных"
+      ],
+      "metadata": {
+        "id": "ADHXZbStZuy9"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "pip install xgboost"
+      ],
+      "metadata": {
+        "id": "uaKzqUxsdjDa"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "pip install imbalanced-learn"
+      ],
+      "metadata": {
+        "id": "qiD49IgGWEK9"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "pip install catboost"
+      ],
+      "metadata": {
+        "id": "ChvGOYiSWHPF"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "import pandas as pd\n",
+        "import seaborn as sns\n",
+        "import numpy as np\n",
+        "import matplotlib.pyplot as plt\n",
+        "from sklearn.model_selection import train_test_split\n",
+        "from catboost import CatBoostClassifier\n",
+        "import xgboost as xgb\n",
+        "from sklearn.model_selection import GridSearchCV\n",
+        "from imblearn.over_sampling import RandomOverSampler\n",
+        "\n",
+        "%matplotlib inline"
+      ],
+      "metadata": {
+        "id": "3TX1x1__m9bz"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from google.colab import drive\n",
+        "drive.mount('/content/drive')"
+      ],
+      "metadata": {
+        "id": "L9YZV3QkWOTJ"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "2scLoULoXkT0",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "outputId": "49988917-cb8b-4482-aa3e-ce88b38a1dae"
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "/usr/local/lib/python3.7/dist-packages/IPython/core/interactiveshell.py:3326: DtypeWarning: Columns (2) have mixed types.Specify dtype option on import or set low_memory=False.\n",
+            "  exec(code_obj, self.user_global_ns, self.user_ns)\n"
+          ]
+        }
+      ],
+      "source": [
+        "df = pd.read_csv(\"/content/drive/MyDrive/train_dataset_train.csv\")\n",
+        "df_test = pd.read_csv(\"/content/drive/MyDrive/test_dataset_test.csv\")"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "df_test[\"is_in_yandex\"].size"
+      ],
+      "metadata": {
+        "id": "09LSjaKEFXWr"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Предобработка данных"
+      ],
+      "metadata": {
+        "id": "hyFX3tfoZ1hK"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "df[\"is_in_yandex\"] = pd.Categorical(df[\"is_in_yandex\"])\n",
+        "df[\"is_in_yandex\"].astype('category').cat.codes\n",
+        "df[\"is_in_yandex\"] = df[\"is_in_yandex\"].cat.codes\n",
+        "\n",
+        "df_test[\"is_in_yandex\"] = pd.Categorical(df_test[\"is_in_yandex\"])\n",
+        "df_test[\"is_in_yandex\"].astype('category').cat.codes\n",
+        "df_test[\"is_in_yandex\"] = df_test[\"is_in_yandex\"].cat.codes"
+      ],
+      "metadata": {
+        "id": "wuSmnOhneooh"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "df[\"is_return\"] = pd.Categorical(df[\"is_return\"])\n",
+        "df[\"is_return\"].astype('category').cat.codes\n",
+        "df[\"is_return\"] = df[\"is_return\"].cat.codes\n",
+        "\n",
+        "df_test[\"is_return\"] = pd.Categorical(df_test[\"is_return\"])\n",
+        "df_test[\"is_return\"].astype('category').cat.codes\n",
+        "df_test[\"is_return\"] = df_test[\"is_return\"].cat.codes"
+      ],
+      "metadata": {
+        "id": "vdTdoZs293hM"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Заполним пустые ячейки нулями"
+      ],
+      "metadata": {
+        "id": "1A9iugLfXCIz"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "df = df.fillna(0)\n",
+        "df_test = df_test.fillna(0)"
+      ],
+      "metadata": {
+        "id": "at9QQkMNA-VV"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Обьединим список не нужных строк с списком строк типа object"
+      ],
+      "metadata": {
+        "id": "V-7e0uZ0As9z"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "col_obj = df.select_dtypes(include=['object']).columns.values\n",
+        "col_obj = list(set(col_obj) ^ set([\"id\", \"label\"]))"
+      ],
+      "metadata": {
+        "id": "PYDt4hVn_GB9"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "X = df.drop(col_obj, axis = 1)\n",
+        "y = df[[\"label\"]]\n"
+      ],
+      "metadata": {
+        "id": "mkCL9b-8hmZ1"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Сгенерируем рандомные строки с label = 1 для баланса классов"
+      ],
+      "metadata": {
+        "id": "oup4N38VXX2K"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "ros = RandomOverSampler(random_state=42)\n",
+        "X, y = ros.fit_resample(X, y)"
+      ],
+      "metadata": {
+        "id": "ujPielcGOHsp"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "y.value_counts()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "TxGFIhnY4ab0",
+        "outputId": "a3ff06e5-9e85-4851-c64c-a379ca7c5f99"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "label\n",
+              "0        5829020\n",
+              "1        5829020\n",
+              "dtype: int64"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 11
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "\n",
+        "X_train = X\n",
+        "y_train = y\n",
+        "\n",
+        "X_test = df_test.drop(['id',\n",
+        " 'name_mfi',\n",
+        " 'is_privatecategory',\n",
+        " 'type',\n",
+        " 'index_oper',\n",
+        " 'oper_type + oper_attr'], axis = 1)"
+      ],
+      "metadata": {
+        "id": "NfIOX9Lbik_i"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Обучение модели"
+      ],
+      "metadata": {
+        "id": "-amQlrcFZ9GQ"
+      }
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Подбор парамметров модели"
+      ],
+      "metadata": {
+        "id": "vUexysjaX1Xp"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "#cl = CatBoostClassifier(random_seed=43,\n",
+        "#    loss_function='MultiClass')\n",
+        "#parameters = {'iterations':range(100, 401, 100)}\n",
+        "#model = GridSearchCV(cl, parameters)"
+      ],
+      "metadata": {
+        "id": "jc-KKFlWf6_N"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Обучаем модель на лучших параметрах"
+      ],
+      "metadata": {
+        "id": "nk0s3T5XX5Sy"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "\n",
+        "model = CatBoostClassifier(\n",
+        "    iterations=300,\n",
+        "    random_seed=43,\n",
+        "    loss_function='MultiClass'\n",
+        ")\n"
+      ],
+      "metadata": {
+        "id": "jYZZpJ_B-ouV"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "model.fit(X_train, y_train)"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "nh2MPtDyAJPX",
+        "outputId": "8ac73d6b-e051-4438-829d-5c5bd1a0b8f4"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Learning rate set to 0.30973\n",
+            "0:\tlearn: 0.5465372\ttotal: 4.38s\tremaining: 25m 28s\n",
+            "1:\tlearn: 0.4699556\ttotal: 8.94s\tremaining: 25m 55s\n",
+            "2:\tlearn: 0.4229116\ttotal: 13s\tremaining: 25m 6s\n",
+            "3:\tlearn: 0.3938554\ttotal: 16.6s\tremaining: 23m 53s\n",
+            "4:\tlearn: 0.3735307\ttotal: 20s\tremaining: 23m\n",
+            "5:\tlearn: 0.3577395\ttotal: 23.6s\tremaining: 22m 31s\n",
+            "6:\tlearn: 0.3464525\ttotal: 27.1s\tremaining: 22m 8s\n",
+            "7:\tlearn: 0.3382440\ttotal: 30.6s\tremaining: 21m 47s\n",
+            "8:\tlearn: 0.3323081\ttotal: 33.7s\tremaining: 21m 18s\n",
+            "9:\tlearn: 0.3266046\ttotal: 36.8s\tremaining: 20m 51s\n",
+            "10:\tlearn: 0.3215053\ttotal: 40.1s\tremaining: 20m 37s\n",
+            "11:\tlearn: 0.3171536\ttotal: 43.2s\tremaining: 20m 18s\n",
+            "12:\tlearn: 0.3137132\ttotal: 46.7s\tremaining: 20m 10s\n",
+            "13:\tlearn: 0.3111602\ttotal: 52.3s\tremaining: 20m 54s\n",
+            "14:\tlearn: 0.3089431\ttotal: 55.5s\tremaining: 20m 39s\n",
+            "15:\tlearn: 0.3067141\ttotal: 58.6s\tremaining: 20m 24s\n",
+            "16:\tlearn: 0.3050481\ttotal: 1m 1s\tremaining: 20m 6s\n",
+            "17:\tlearn: 0.3038557\ttotal: 1m 4s\tremaining: 19m 49s\n",
+            "18:\tlearn: 0.3020651\ttotal: 1m 8s\tremaining: 19m 47s\n",
+            "19:\tlearn: 0.3005535\ttotal: 1m 11s\tremaining: 19m 41s\n",
+            "20:\tlearn: 0.2998175\ttotal: 1m 14s\tremaining: 19m 26s\n",
+            "21:\tlearn: 0.2978618\ttotal: 1m 17s\tremaining: 19m 18s\n",
+            "22:\tlearn: 0.2969540\ttotal: 1m 20s\tremaining: 19m 10s\n",
+            "23:\tlearn: 0.2955324\ttotal: 1m 24s\tremaining: 19m 5s\n",
+            "24:\tlearn: 0.2948165\ttotal: 1m 27s\tremaining: 18m 56s\n",
+            "25:\tlearn: 0.2940523\ttotal: 1m 30s\tremaining: 18m 46s\n",
+            "26:\tlearn: 0.2932803\ttotal: 1m 34s\tremaining: 18m 53s\n",
+            "27:\tlearn: 0.2928543\ttotal: 1m 37s\tremaining: 18m 46s\n",
+            "28:\tlearn: 0.2916915\ttotal: 1m 41s\tremaining: 18m 42s\n",
+            "29:\tlearn: 0.2906618\ttotal: 1m 45s\tremaining: 18m 44s\n",
+            "30:\tlearn: 0.2901658\ttotal: 1m 48s\tremaining: 18m 38s\n",
+            "31:\tlearn: 0.2895896\ttotal: 1m 51s\tremaining: 18m 31s\n",
+            "32:\tlearn: 0.2889499\ttotal: 1m 55s\tremaining: 18m 29s\n",
+            "33:\tlearn: 0.2879319\ttotal: 1m 59s\tremaining: 18m 27s\n",
+            "34:\tlearn: 0.2872726\ttotal: 2m 2s\tremaining: 18m 22s\n",
+            "35:\tlearn: 0.2866772\ttotal: 2m 5s\tremaining: 18m 17s\n",
+            "36:\tlearn: 0.2862286\ttotal: 2m 9s\tremaining: 18m 11s\n",
+            "37:\tlearn: 0.2859709\ttotal: 2m 11s\tremaining: 18m 3s\n",
+            "38:\tlearn: 0.2855363\ttotal: 2m 16s\tremaining: 18m 10s\n",
+            "39:\tlearn: 0.2850938\ttotal: 2m 19s\tremaining: 18m 3s\n",
+            "40:\tlearn: 0.2846489\ttotal: 2m 22s\tremaining: 17m 57s\n",
+            "41:\tlearn: 0.2840334\ttotal: 2m 26s\tremaining: 17m 55s\n",
+            "42:\tlearn: 0.2838872\ttotal: 2m 29s\tremaining: 17m 46s\n",
+            "43:\tlearn: 0.2831473\ttotal: 2m 32s\tremaining: 17m 43s\n",
+            "44:\tlearn: 0.2828993\ttotal: 2m 35s\tremaining: 17m 36s\n",
+            "45:\tlearn: 0.2824999\ttotal: 2m 39s\tremaining: 17m 36s\n",
+            "46:\tlearn: 0.2823635\ttotal: 2m 42s\tremaining: 17m 28s\n",
+            "47:\tlearn: 0.2820485\ttotal: 2m 45s\tremaining: 17m 24s\n",
+            "48:\tlearn: 0.2818233\ttotal: 2m 49s\tremaining: 17m 18s\n",
+            "49:\tlearn: 0.2814296\ttotal: 2m 52s\tremaining: 17m 14s\n",
+            "50:\tlearn: 0.2813464\ttotal: 2m 55s\tremaining: 17m 9s\n",
+            "51:\tlearn: 0.2811501\ttotal: 2m 59s\tremaining: 17m 9s\n",
+            "52:\tlearn: 0.2809655\ttotal: 3m 2s\tremaining: 17m 4s\n",
+            "53:\tlearn: 0.2807336\ttotal: 3m 6s\tremaining: 17m\n",
+            "54:\tlearn: 0.2804796\ttotal: 3m 9s\tremaining: 16m 55s\n",
+            "55:\tlearn: 0.2800673\ttotal: 3m 12s\tremaining: 16m 52s\n",
+            "56:\tlearn: 0.2798960\ttotal: 3m 16s\tremaining: 16m 48s\n",
+            "57:\tlearn: 0.2797996\ttotal: 3m 19s\tremaining: 16m 42s\n",
+            "58:\tlearn: 0.2796968\ttotal: 3m 21s\tremaining: 16m 35s\n",
+            "59:\tlearn: 0.2795531\ttotal: 3m 24s\tremaining: 16m 30s\n",
+            "60:\tlearn: 0.2793083\ttotal: 3m 28s\tremaining: 16m 26s\n",
+            "61:\tlearn: 0.2790707\ttotal: 3m 31s\tremaining: 16m 23s\n",
+            "62:\tlearn: 0.2788273\ttotal: 3m 34s\tremaining: 16m 19s\n",
+            "63:\tlearn: 0.2786059\ttotal: 3m 39s\tremaining: 16m 20s\n",
+            "64:\tlearn: 0.2783620\ttotal: 3m 42s\tremaining: 16m 15s\n",
+            "65:\tlearn: 0.2781516\ttotal: 3m 45s\tremaining: 16m 11s\n",
+            "66:\tlearn: 0.2780198\ttotal: 3m 48s\tremaining: 16m 6s\n",
+            "67:\tlearn: 0.2778291\ttotal: 3m 52s\tremaining: 16m 3s\n",
+            "68:\tlearn: 0.2777498\ttotal: 3m 55s\tremaining: 15m 58s\n",
+            "69:\tlearn: 0.2774669\ttotal: 3m 58s\tremaining: 15m 54s\n",
+            "70:\tlearn: 0.2774028\ttotal: 4m 1s\tremaining: 15m 49s\n",
+            "71:\tlearn: 0.2770460\ttotal: 4m 5s\tremaining: 15m 46s\n",
+            "72:\tlearn: 0.2769343\ttotal: 4m 8s\tremaining: 15m 43s\n",
+            "73:\tlearn: 0.2767921\ttotal: 4m 12s\tremaining: 15m 40s\n",
+            "74:\tlearn: 0.2766148\ttotal: 4m 15s\tremaining: 15m 35s\n",
+            "75:\tlearn: 0.2765303\ttotal: 4m 18s\tremaining: 15m 30s\n",
+            "76:\tlearn: 0.2763827\ttotal: 4m 22s\tremaining: 15m 32s\n",
+            "77:\tlearn: 0.2762726\ttotal: 4m 26s\tremaining: 15m 28s\n",
+            "78:\tlearn: 0.2760723\ttotal: 4m 29s\tremaining: 15m 24s\n",
+            "79:\tlearn: 0.2759771\ttotal: 4m 34s\tremaining: 15m 24s\n",
+            "80:\tlearn: 0.2759450\ttotal: 4m 36s\tremaining: 15m 18s\n",
+            "81:\tlearn: 0.2758949\ttotal: 4m 39s\tremaining: 15m 14s\n",
+            "82:\tlearn: 0.2757937\ttotal: 4m 42s\tremaining: 15m 10s\n",
+            "83:\tlearn: 0.2756698\ttotal: 4m 46s\tremaining: 15m 6s\n",
+            "84:\tlearn: 0.2754103\ttotal: 4m 49s\tremaining: 15m 3s\n",
+            "85:\tlearn: 0.2753677\ttotal: 4m 52s\tremaining: 14m 58s\n",
+            "86:\tlearn: 0.2752108\ttotal: 4m 55s\tremaining: 14m 53s\n",
+            "87:\tlearn: 0.2751523\ttotal: 4m 58s\tremaining: 14m 49s\n",
+            "88:\tlearn: 0.2749983\ttotal: 5m 3s\tremaining: 14m 48s\n",
+            "89:\tlearn: 0.2749674\ttotal: 5m 5s\tremaining: 14m 43s\n",
+            "90:\tlearn: 0.2748987\ttotal: 5m 9s\tremaining: 14m 39s\n",
+            "91:\tlearn: 0.2748266\ttotal: 5m 12s\tremaining: 14m 35s\n",
+            "92:\tlearn: 0.2747566\ttotal: 5m 15s\tremaining: 14m 31s\n",
+            "93:\tlearn: 0.2746767\ttotal: 5m 18s\tremaining: 14m 27s\n",
+            "94:\tlearn: 0.2746004\ttotal: 5m 21s\tremaining: 14m 23s\n",
+            "95:\tlearn: 0.2745080\ttotal: 5m 24s\tremaining: 14m 19s\n",
+            "96:\tlearn: 0.2743385\ttotal: 5m 28s\tremaining: 14m 16s\n",
+            "97:\tlearn: 0.2742882\ttotal: 5m 30s\tremaining: 14m 11s\n",
+            "98:\tlearn: 0.2741923\ttotal: 5m 34s\tremaining: 14m 6s\n",
+            "99:\tlearn: 0.2740841\ttotal: 5m 37s\tremaining: 14m 3s\n",
+            "100:\tlearn: 0.2739959\ttotal: 5m 40s\tremaining: 13m 59s\n",
+            "101:\tlearn: 0.2739651\ttotal: 5m 43s\tremaining: 13m 54s\n",
+            "102:\tlearn: 0.2739199\ttotal: 5m 47s\tremaining: 13m 53s\n",
+            "103:\tlearn: 0.2738166\ttotal: 5m 50s\tremaining: 13m 49s\n",
+            "104:\tlearn: 0.2736639\ttotal: 5m 54s\tremaining: 13m 46s\n",
+            "105:\tlearn: 0.2735877\ttotal: 5m 57s\tremaining: 13m 42s\n",
+            "106:\tlearn: 0.2735472\ttotal: 6m\tremaining: 13m 37s\n",
+            "107:\tlearn: 0.2734797\ttotal: 6m 3s\tremaining: 13m 33s\n",
+            "108:\tlearn: 0.2734097\ttotal: 6m 6s\tremaining: 13m 30s\n",
+            "109:\tlearn: 0.2733063\ttotal: 6m 9s\tremaining: 13m 27s\n",
+            "110:\tlearn: 0.2732427\ttotal: 6m 13s\tremaining: 13m 23s\n",
+            "111:\tlearn: 0.2731633\ttotal: 6m 16s\tremaining: 13m 19s\n",
+            "112:\tlearn: 0.2731334\ttotal: 6m 19s\tremaining: 13m 15s\n",
+            "113:\tlearn: 0.2730766\ttotal: 6m 22s\tremaining: 13m 12s\n",
+            "114:\tlearn: 0.2729783\ttotal: 6m 26s\tremaining: 13m 8s\n",
+            "115:\tlearn: 0.2729560\ttotal: 6m 30s\tremaining: 13m 7s\n",
+            "116:\tlearn: 0.2728273\ttotal: 6m 33s\tremaining: 13m 4s\n",
+            "117:\tlearn: 0.2727951\ttotal: 6m 36s\tremaining: 13m\n",
+            "118:\tlearn: 0.2726853\ttotal: 6m 40s\tremaining: 12m 56s\n",
+            "119:\tlearn: 0.2726549\ttotal: 6m 43s\tremaining: 12m 52s\n",
+            "120:\tlearn: 0.2726021\ttotal: 6m 46s\tremaining: 12m 48s\n",
+            "121:\tlearn: 0.2725645\ttotal: 6m 49s\tremaining: 12m 44s\n",
+            "122:\tlearn: 0.2725425\ttotal: 6m 52s\tremaining: 12m 40s\n",
+            "123:\tlearn: 0.2723958\ttotal: 6m 55s\tremaining: 12m 37s\n",
+            "124:\tlearn: 0.2722953\ttotal: 6m 59s\tremaining: 12m 34s\n",
+            "125:\tlearn: 0.2721698\ttotal: 7m 2s\tremaining: 12m 31s\n",
+            "126:\tlearn: 0.2721537\ttotal: 7m 5s\tremaining: 12m 27s\n",
+            "127:\tlearn: 0.2721245\ttotal: 7m 9s\tremaining: 12m 24s\n",
+            "128:\tlearn: 0.2720617\ttotal: 7m 13s\tremaining: 12m 22s\n",
+            "129:\tlearn: 0.2719936\ttotal: 7m 16s\tremaining: 12m 19s\n",
+            "130:\tlearn: 0.2719442\ttotal: 7m 19s\tremaining: 12m 15s\n",
+            "131:\tlearn: 0.2719262\ttotal: 7m 23s\tremaining: 12m 12s\n",
+            "132:\tlearn: 0.2718769\ttotal: 7m 27s\tremaining: 12m 9s\n",
+            "133:\tlearn: 0.2718346\ttotal: 7m 30s\tremaining: 12m 5s\n",
+            "134:\tlearn: 0.2718047\ttotal: 7m 33s\tremaining: 12m 1s\n",
+            "135:\tlearn: 0.2717362\ttotal: 7m 36s\tremaining: 11m 58s\n",
+            "136:\tlearn: 0.2716952\ttotal: 7m 39s\tremaining: 11m 55s\n",
+            "137:\tlearn: 0.2716680\ttotal: 7m 42s\tremaining: 11m 51s\n",
+            "138:\tlearn: 0.2716342\ttotal: 7m 45s\tremaining: 11m 47s\n",
+            "139:\tlearn: 0.2716045\ttotal: 7m 49s\tremaining: 11m 43s\n",
+            "140:\tlearn: 0.2715645\ttotal: 7m 53s\tremaining: 11m 42s\n",
+            "141:\tlearn: 0.2714952\ttotal: 7m 57s\tremaining: 11m 39s\n",
+            "142:\tlearn: 0.2714596\ttotal: 8m\tremaining: 11m 35s\n",
+            "143:\tlearn: 0.2714359\ttotal: 8m 3s\tremaining: 11m 31s\n",
+            "144:\tlearn: 0.2714074\ttotal: 8m 6s\tremaining: 11m 27s\n",
+            "145:\tlearn: 0.2713609\ttotal: 8m 9s\tremaining: 11m 23s\n",
+            "146:\tlearn: 0.2713132\ttotal: 8m 12s\tremaining: 11m 20s\n",
+            "147:\tlearn: 0.2712731\ttotal: 8m 15s\tremaining: 11m 16s\n",
+            "148:\tlearn: 0.2712436\ttotal: 8m 18s\tremaining: 11m 12s\n",
+            "149:\tlearn: 0.2712166\ttotal: 8m 21s\tremaining: 11m 9s\n",
+            "150:\tlearn: 0.2711760\ttotal: 8m 25s\tremaining: 11m 5s\n",
+            "151:\tlearn: 0.2711443\ttotal: 8m 28s\tremaining: 11m 3s\n",
+            "152:\tlearn: 0.2711276\ttotal: 8m 32s\tremaining: 10m 59s\n",
+            "153:\tlearn: 0.2711089\ttotal: 8m 35s\tremaining: 10m 56s\n",
+            "154:\tlearn: 0.2710528\ttotal: 8m 38s\tremaining: 10m 52s\n",
+            "155:\tlearn: 0.2710062\ttotal: 8m 42s\tremaining: 10m 49s\n",
+            "156:\tlearn: 0.2709741\ttotal: 8m 44s\tremaining: 10m 45s\n",
+            "157:\tlearn: 0.2709480\ttotal: 8m 47s\tremaining: 10m 41s\n",
+            "158:\tlearn: 0.2709138\ttotal: 8m 51s\tremaining: 10m 38s\n",
+            "159:\tlearn: 0.2708915\ttotal: 8m 54s\tremaining: 10m 34s\n",
+            "160:\tlearn: 0.2708781\ttotal: 8m 56s\tremaining: 10m 30s\n",
+            "161:\tlearn: 0.2708506\ttotal: 8m 59s\tremaining: 10m 26s\n",
+            "162:\tlearn: 0.2708196\ttotal: 9m 2s\tremaining: 10m 22s\n",
+            "163:\tlearn: 0.2707681\ttotal: 9m 5s\tremaining: 10m 18s\n",
+            "164:\tlearn: 0.2707270\ttotal: 9m 8s\tremaining: 10m 15s\n",
+            "165:\tlearn: 0.2706947\ttotal: 9m 11s\tremaining: 10m 11s\n",
+            "166:\tlearn: 0.2706558\ttotal: 9m 16s\tremaining: 10m 9s\n",
+            "167:\tlearn: 0.2706343\ttotal: 9m 19s\tremaining: 10m 5s\n",
+            "168:\tlearn: 0.2705704\ttotal: 9m 22s\tremaining: 10m 2s\n",
+            "169:\tlearn: 0.2705103\ttotal: 9m 25s\tremaining: 9m 58s\n",
+            "170:\tlearn: 0.2704793\ttotal: 9m 28s\tremaining: 9m 55s\n",
+            "171:\tlearn: 0.2704535\ttotal: 9m 31s\tremaining: 9m 51s\n",
+            "172:\tlearn: 0.2704211\ttotal: 9m 34s\tremaining: 9m 47s\n",
+            "173:\tlearn: 0.2703783\ttotal: 9m 37s\tremaining: 9m 44s\n",
+            "174:\tlearn: 0.2703419\ttotal: 9m 40s\tremaining: 9m 40s\n",
+            "175:\tlearn: 0.2703122\ttotal: 9m 43s\tremaining: 9m 36s\n",
+            "176:\tlearn: 0.2702874\ttotal: 9m 47s\tremaining: 9m 33s\n",
+            "177:\tlearn: 0.2702421\ttotal: 9m 50s\tremaining: 9m 30s\n",
+            "178:\tlearn: 0.2701777\ttotal: 9m 54s\tremaining: 9m 27s\n",
+            "179:\tlearn: 0.2701073\ttotal: 9m 57s\tremaining: 9m 24s\n",
+            "180:\tlearn: 0.2700845\ttotal: 10m 1s\tremaining: 9m 21s\n",
+            "181:\tlearn: 0.2700238\ttotal: 10m 4s\tremaining: 9m 17s\n",
+            "182:\tlearn: 0.2700060\ttotal: 10m 7s\tremaining: 9m 14s\n",
+            "183:\tlearn: 0.2699534\ttotal: 10m 10s\tremaining: 9m 10s\n",
+            "184:\tlearn: 0.2699169\ttotal: 10m 14s\tremaining: 9m 7s\n",
+            "185:\tlearn: 0.2698501\ttotal: 10m 18s\tremaining: 9m 5s\n",
+            "186:\tlearn: 0.2697984\ttotal: 10m 22s\tremaining: 9m 2s\n",
+            "187:\tlearn: 0.2697619\ttotal: 10m 25s\tremaining: 8m 58s\n",
+            "188:\tlearn: 0.2696534\ttotal: 10m 28s\tremaining: 8m 55s\n",
+            "189:\tlearn: 0.2696319\ttotal: 10m 31s\tremaining: 8m 51s\n",
+            "190:\tlearn: 0.2696125\ttotal: 10m 34s\tremaining: 8m 48s\n",
+            "191:\tlearn: 0.2696009\ttotal: 10m 37s\tremaining: 8m 44s\n",
+            "192:\tlearn: 0.2695668\ttotal: 10m 41s\tremaining: 8m 41s\n",
+            "193:\tlearn: 0.2695130\ttotal: 10m 44s\tremaining: 8m 38s\n",
+            "194:\tlearn: 0.2694841\ttotal: 10m 47s\tremaining: 8m 34s\n",
+            "195:\tlearn: 0.2694429\ttotal: 10m 51s\tremaining: 8m 31s\n",
+            "196:\tlearn: 0.2694147\ttotal: 10m 54s\tremaining: 8m 28s\n",
+            "197:\tlearn: 0.2693830\ttotal: 10m 57s\tremaining: 8m 24s\n",
+            "198:\tlearn: 0.2693438\ttotal: 11m\tremaining: 8m 21s\n",
+            "199:\tlearn: 0.2693091\ttotal: 11m 4s\tremaining: 8m 18s\n",
+            "200:\tlearn: 0.2692795\ttotal: 11m 7s\tremaining: 8m 14s\n",
+            "201:\tlearn: 0.2692570\ttotal: 11m 10s\tremaining: 8m 11s\n",
+            "202:\tlearn: 0.2692186\ttotal: 11m 14s\tremaining: 8m 8s\n",
+            "203:\tlearn: 0.2691809\ttotal: 11m 17s\tremaining: 8m 4s\n",
+            "204:\tlearn: 0.2691340\ttotal: 11m 20s\tremaining: 8m 1s\n",
+            "205:\tlearn: 0.2691114\ttotal: 11m 24s\tremaining: 7m 58s\n",
+            "206:\tlearn: 0.2690703\ttotal: 11m 27s\tremaining: 7m 54s\n",
+            "207:\tlearn: 0.2690419\ttotal: 11m 30s\tremaining: 7m 51s\n",
+            "208:\tlearn: 0.2690028\ttotal: 11m 33s\tremaining: 7m 47s\n",
+            "209:\tlearn: 0.2689707\ttotal: 11m 36s\tremaining: 7m 44s\n",
+            "210:\tlearn: 0.2689302\ttotal: 11m 39s\tremaining: 7m 40s\n",
+            "211:\tlearn: 0.2689098\ttotal: 11m 42s\tremaining: 7m 37s\n",
+            "212:\tlearn: 0.2688835\ttotal: 11m 46s\tremaining: 7m 34s\n",
+            "213:\tlearn: 0.2688613\ttotal: 11m 49s\tremaining: 7m 30s\n",
+            "214:\tlearn: 0.2688451\ttotal: 11m 51s\tremaining: 7m 26s\n",
+            "215:\tlearn: 0.2688267\ttotal: 11m 54s\tremaining: 7m 23s\n",
+            "216:\tlearn: 0.2688050\ttotal: 11m 57s\tremaining: 7m 19s\n",
+            "217:\tlearn: 0.2687832\ttotal: 12m\tremaining: 7m 16s\n",
+            "218:\tlearn: 0.2687565\ttotal: 12m 4s\tremaining: 7m 13s\n",
+            "219:\tlearn: 0.2687357\ttotal: 12m 8s\tremaining: 7m 10s\n",
+            "220:\tlearn: 0.2687215\ttotal: 12m 11s\tremaining: 7m 6s\n",
+            "221:\tlearn: 0.2686431\ttotal: 12m 14s\tremaining: 7m 3s\n",
+            "222:\tlearn: 0.2686209\ttotal: 12m 17s\tremaining: 6m 59s\n",
+            "223:\tlearn: 0.2686069\ttotal: 12m 19s\tremaining: 6m 56s\n",
+            "224:\tlearn: 0.2685825\ttotal: 12m 22s\tremaining: 6m 52s\n",
+            "225:\tlearn: 0.2685442\ttotal: 12m 25s\tremaining: 6m 49s\n",
+            "226:\tlearn: 0.2685271\ttotal: 12m 28s\tremaining: 6m 45s\n",
+            "227:\tlearn: 0.2685072\ttotal: 12m 31s\tremaining: 6m 42s\n",
+            "228:\tlearn: 0.2684857\ttotal: 12m 34s\tremaining: 6m 38s\n",
+            "229:\tlearn: 0.2684556\ttotal: 12m 37s\tremaining: 6m 35s\n",
+            "230:\tlearn: 0.2684308\ttotal: 12m 40s\tremaining: 6m 31s\n",
+            "231:\tlearn: 0.2684059\ttotal: 12m 43s\tremaining: 6m 28s\n",
+            "232:\tlearn: 0.2683671\ttotal: 12m 47s\tremaining: 6m 25s\n",
+            "233:\tlearn: 0.2683405\ttotal: 12m 51s\tremaining: 6m 22s\n",
+            "234:\tlearn: 0.2683196\ttotal: 12m 54s\tremaining: 6m 19s\n",
+            "235:\tlearn: 0.2682952\ttotal: 12m 57s\tremaining: 6m 15s\n",
+            "236:\tlearn: 0.2682627\ttotal: 13m\tremaining: 6m 12s\n",
+            "237:\tlearn: 0.2682490\ttotal: 13m 3s\tremaining: 6m 8s\n",
+            "238:\tlearn: 0.2682224\ttotal: 13m 7s\tremaining: 6m 5s\n",
+            "239:\tlearn: 0.2682008\ttotal: 13m 10s\tremaining: 6m 2s\n",
+            "240:\tlearn: 0.2681832\ttotal: 13m 13s\tremaining: 5m 58s\n",
+            "241:\tlearn: 0.2681372\ttotal: 13m 16s\tremaining: 5m 55s\n",
+            "242:\tlearn: 0.2680479\ttotal: 13m 20s\tremaining: 5m 52s\n",
+            "243:\tlearn: 0.2680192\ttotal: 13m 23s\tremaining: 5m 48s\n",
+            "244:\tlearn: 0.2679876\ttotal: 13m 26s\tremaining: 5m 45s\n",
+            "245:\tlearn: 0.2679505\ttotal: 13m 30s\tremaining: 5m 42s\n",
+            "246:\tlearn: 0.2679346\ttotal: 13m 33s\tremaining: 5m 39s\n",
+            "247:\tlearn: 0.2679235\ttotal: 13m 36s\tremaining: 5m 35s\n",
+            "248:\tlearn: 0.2678743\ttotal: 13m 39s\tremaining: 5m 32s\n",
+            "249:\tlearn: 0.2678301\ttotal: 13m 42s\tremaining: 5m 29s\n",
+            "250:\tlearn: 0.2677938\ttotal: 13m 45s\tremaining: 5m 25s\n",
+            "251:\tlearn: 0.2677855\ttotal: 13m 48s\tremaining: 5m 22s\n",
+            "252:\tlearn: 0.2677549\ttotal: 13m 51s\tremaining: 5m 18s\n",
+            "253:\tlearn: 0.2677252\ttotal: 13m 54s\tremaining: 5m 15s\n",
+            "254:\tlearn: 0.2677118\ttotal: 13m 57s\tremaining: 5m 12s\n",
+            "255:\tlearn: 0.2676784\ttotal: 14m\tremaining: 5m 8s\n",
+            "256:\tlearn: 0.2676611\ttotal: 14m 3s\tremaining: 5m 5s\n",
+            "257:\tlearn: 0.2676368\ttotal: 14m 6s\tremaining: 5m 1s\n",
+            "258:\tlearn: 0.2676198\ttotal: 14m 9s\tremaining: 4m 58s\n",
+            "259:\tlearn: 0.2676098\ttotal: 14m 12s\tremaining: 4m 55s\n",
+            "260:\tlearn: 0.2675938\ttotal: 14m 16s\tremaining: 4m 51s\n",
+            "261:\tlearn: 0.2675773\ttotal: 14m 18s\tremaining: 4m 48s\n",
+            "262:\tlearn: 0.2675533\ttotal: 14m 21s\tremaining: 4m 45s\n",
+            "263:\tlearn: 0.2675300\ttotal: 14m 24s\tremaining: 4m 41s\n",
+            "264:\tlearn: 0.2675189\ttotal: 14m 27s\tremaining: 4m 38s\n",
+            "265:\tlearn: 0.2674857\ttotal: 14m 30s\tremaining: 4m 34s\n",
+            "266:\tlearn: 0.2674532\ttotal: 14m 34s\tremaining: 4m 31s\n",
+            "267:\tlearn: 0.2674353\ttotal: 14m 37s\tremaining: 4m 28s\n",
+            "268:\tlearn: 0.2673883\ttotal: 14m 41s\tremaining: 4m 25s\n",
+            "269:\tlearn: 0.2673380\ttotal: 14m 44s\tremaining: 4m 22s\n",
+            "270:\tlearn: 0.2673283\ttotal: 14m 47s\tremaining: 4m 18s\n",
+            "271:\tlearn: 0.2673191\ttotal: 14m 50s\tremaining: 4m 15s\n",
+            "272:\tlearn: 0.2673141\ttotal: 14m 52s\tremaining: 4m 11s\n",
+            "273:\tlearn: 0.2672622\ttotal: 14m 56s\tremaining: 4m 8s\n",
+            "274:\tlearn: 0.2672514\ttotal: 15m\tremaining: 4m 5s\n",
+            "275:\tlearn: 0.2672180\ttotal: 15m 3s\tremaining: 4m 2s\n",
+            "276:\tlearn: 0.2671916\ttotal: 15m 5s\tremaining: 3m 58s\n",
+            "277:\tlearn: 0.2671691\ttotal: 15m 8s\tremaining: 3m 55s\n",
+            "278:\tlearn: 0.2671488\ttotal: 15m 11s\tremaining: 3m 51s\n",
+            "279:\tlearn: 0.2671329\ttotal: 15m 14s\tremaining: 3m 48s\n",
+            "280:\tlearn: 0.2670938\ttotal: 15m 17s\tremaining: 3m 45s\n",
+            "281:\tlearn: 0.2670718\ttotal: 15m 21s\tremaining: 3m 42s\n",
+            "282:\tlearn: 0.2670400\ttotal: 15m 24s\tremaining: 3m 38s\n",
+            "283:\tlearn: 0.2670208\ttotal: 15m 27s\tremaining: 3m 35s\n",
+            "284:\tlearn: 0.2670057\ttotal: 15m 30s\tremaining: 3m 32s\n",
+            "285:\tlearn: 0.2669755\ttotal: 15m 33s\tremaining: 3m 28s\n",
+            "286:\tlearn: 0.2669597\ttotal: 15m 36s\tremaining: 3m 25s\n",
+            "287:\tlearn: 0.2669289\ttotal: 15m 40s\tremaining: 3m 22s\n",
+            "288:\tlearn: 0.2669190\ttotal: 15m 43s\tremaining: 3m 19s\n",
+            "289:\tlearn: 0.2669023\ttotal: 15m 46s\tremaining: 3m 15s\n",
+            "290:\tlearn: 0.2668849\ttotal: 15m 49s\tremaining: 3m 12s\n",
+            "291:\tlearn: 0.2668520\ttotal: 15m 52s\tremaining: 3m 9s\n",
+            "292:\tlearn: 0.2668320\ttotal: 15m 55s\tremaining: 3m 5s\n",
+            "293:\tlearn: 0.2668203\ttotal: 15m 59s\tremaining: 3m 2s\n",
+            "294:\tlearn: 0.2667831\ttotal: 16m 2s\tremaining: 2m 59s\n",
+            "295:\tlearn: 0.2667621\ttotal: 16m 5s\tremaining: 2m 56s\n",
+            "296:\tlearn: 0.2667482\ttotal: 16m 9s\tremaining: 2m 52s\n",
+            "297:\tlearn: 0.2666718\ttotal: 16m 12s\tremaining: 2m 49s\n",
+            "298:\tlearn: 0.2666437\ttotal: 16m 15s\tremaining: 2m 46s\n",
+            "299:\tlearn: 0.2666245\ttotal: 16m 18s\tremaining: 2m 43s\n",
+            "300:\tlearn: 0.2666110\ttotal: 16m 21s\tremaining: 2m 39s\n",
+            "301:\tlearn: 0.2665934\ttotal: 16m 25s\tremaining: 2m 36s\n",
+            "302:\tlearn: 0.2665675\ttotal: 16m 28s\tremaining: 2m 33s\n",
+            "303:\tlearn: 0.2665513\ttotal: 16m 31s\tremaining: 2m 30s\n",
+            "304:\tlearn: 0.2665156\ttotal: 16m 35s\tremaining: 2m 26s\n",
+            "305:\tlearn: 0.2664960\ttotal: 16m 38s\tremaining: 2m 23s\n",
+            "306:\tlearn: 0.2664844\ttotal: 16m 41s\tremaining: 2m 20s\n",
+            "307:\tlearn: 0.2664506\ttotal: 16m 44s\tremaining: 2m 16s\n",
+            "308:\tlearn: 0.2664296\ttotal: 16m 47s\tremaining: 2m 13s\n",
+            "309:\tlearn: 0.2664155\ttotal: 16m 50s\tremaining: 2m 10s\n",
+            "310:\tlearn: 0.2663921\ttotal: 16m 53s\tremaining: 2m 7s\n",
+            "311:\tlearn: 0.2663628\ttotal: 16m 56s\tremaining: 2m 3s\n",
+            "312:\tlearn: 0.2663461\ttotal: 16m 59s\tremaining: 2m\n",
+            "313:\tlearn: 0.2663263\ttotal: 17m 3s\tremaining: 1m 57s\n",
+            "314:\tlearn: 0.2663008\ttotal: 17m 6s\tremaining: 1m 54s\n",
+            "315:\tlearn: 0.2662589\ttotal: 17m 10s\tremaining: 1m 50s\n",
+            "316:\tlearn: 0.2662373\ttotal: 17m 13s\tremaining: 1m 47s\n",
+            "317:\tlearn: 0.2662155\ttotal: 17m 16s\tremaining: 1m 44s\n",
+            "318:\tlearn: 0.2661988\ttotal: 17m 19s\tremaining: 1m 41s\n",
+            "319:\tlearn: 0.2661811\ttotal: 17m 23s\tremaining: 1m 37s\n",
+            "320:\tlearn: 0.2661559\ttotal: 17m 26s\tremaining: 1m 34s\n",
+            "321:\tlearn: 0.2661336\ttotal: 17m 29s\tremaining: 1m 31s\n",
+            "322:\tlearn: 0.2660983\ttotal: 17m 32s\tremaining: 1m 27s\n",
+            "323:\tlearn: 0.2660543\ttotal: 17m 35s\tremaining: 1m 24s\n",
+            "324:\tlearn: 0.2660386\ttotal: 17m 39s\tremaining: 1m 21s\n",
+            "325:\tlearn: 0.2660156\ttotal: 17m 42s\tremaining: 1m 18s\n",
+            "326:\tlearn: 0.2659904\ttotal: 17m 45s\tremaining: 1m 14s\n",
+            "327:\tlearn: 0.2659780\ttotal: 17m 49s\tremaining: 1m 11s\n",
+            "328:\tlearn: 0.2659415\ttotal: 17m 52s\tremaining: 1m 8s\n",
+            "329:\tlearn: 0.2659135\ttotal: 17m 55s\tremaining: 1m 5s\n",
+            "330:\tlearn: 0.2658982\ttotal: 17m 58s\tremaining: 1m 1s\n",
+            "331:\tlearn: 0.2658772\ttotal: 18m 1s\tremaining: 58.6s\n",
+            "332:\tlearn: 0.2658662\ttotal: 18m 4s\tremaining: 55.4s\n",
+            "333:\tlearn: 0.2658486\ttotal: 18m 7s\tremaining: 52.1s\n",
+            "334:\tlearn: 0.2658216\ttotal: 18m 10s\tremaining: 48.8s\n",
+            "335:\tlearn: 0.2658065\ttotal: 18m 13s\tremaining: 45.6s\n",
+            "336:\tlearn: 0.2657753\ttotal: 18m 16s\tremaining: 42.3s\n",
+            "337:\tlearn: 0.2657616\ttotal: 18m 19s\tremaining: 39s\n",
+            "338:\tlearn: 0.2657198\ttotal: 18m 22s\tremaining: 35.8s\n",
+            "339:\tlearn: 0.2657062\ttotal: 18m 25s\tremaining: 32.5s\n",
+            "340:\tlearn: 0.2656872\ttotal: 18m 30s\tremaining: 29.3s\n",
+            "341:\tlearn: 0.2656799\ttotal: 18m 32s\tremaining: 26s\n",
+            "342:\tlearn: 0.2656697\ttotal: 18m 35s\tremaining: 22.8s\n",
+            "343:\tlearn: 0.2656382\ttotal: 18m 38s\tremaining: 19.5s\n",
+            "344:\tlearn: 0.2656212\ttotal: 18m 41s\tremaining: 16.3s\n",
+            "345:\tlearn: 0.2655997\ttotal: 18m 44s\tremaining: 13s\n",
+            "346:\tlearn: 0.2655612\ttotal: 18m 49s\tremaining: 9.76s\n",
+            "347:\tlearn: 0.2655354\ttotal: 18m 52s\tremaining: 6.51s\n",
+            "348:\tlearn: 0.2655125\ttotal: 18m 55s\tremaining: 3.25s\n",
+            "349:\tlearn: 0.2655025\ttotal: 18m 58s\tremaining: 0us\n"
+          ]
+        },
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "<catboost.core.CatBoostClassifier at 0x7f7e78876c50>"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 22
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Предсказание"
+      ],
+      "metadata": {
+        "id": "TW-RwkmjYPd5"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "pred = model.predict(X_test)"
+      ],
+      "metadata": {
+        "id": "5Ph7vcoxBNYO"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Предсказываем значения целевой переменной в дробных чисел"
+      ],
+      "metadata": {
+        "id": "P91-MJvoYeyM"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "y_pred_prob = model.predict_proba(X_test)"
+      ],
+      "metadata": {
+        "id": "ikFmIV0GFUQC"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Гистограмма распределения классов"
+      ],
+      "metadata": {
+        "id": "fJxyI93vYVko"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "pd.Series(y_pred_prob[:,1]).hist(bins = 50, range = (0,0.4))"
+      ],
+      "metadata": {
+        "id": "3pmBExKEGBbl",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 293
+        },
+        "outputId": "e28dc7f4-465e-4b37-9bd5-7441a18191c3"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "<matplotlib.axes._subplots.AxesSubplot at 0x7f7e6e263c90>"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 25
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "<Figure size 432x288 with 1 Axes>"
+            ],
+            "image/png": "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\n"
+          },
+          "metadata": {
+            "needs_background": "light"
+          }
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Наилучший результат с параметром отнесения к классу '1': целевая переменная > 0.25"
+      ],
+      "metadata": {
+        "id": "xeGbgvZgYcSs"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "y_pred_new = np.where(y_pred_prob[:,1] > 0.25, 1, 0)"
+      ],
+      "metadata": {
+        "id": "dcc_4YugF6ZZ"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Сохраняем полученный результат"
+      ],
+      "metadata": {
+        "id": "NQsm4N_LZcfQ"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "y_pred_new = list(y_pred_new)\n",
+        "sub_7 = pd.DataFrame({'label':y_pred_new})\n",
+        "sub_7.index = df_test['id']\n",
+        "sub_7['label'] = sub_7['label'].astype('int8')"
+      ],
+      "metadata": {
+        "id": "iCdc3Rlh_VK4"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "sub_7['label'].value_counts()"
+      ],
+      "metadata": {
+        "id": "hg1FYg10EASO",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "outputId": "bdc0ede3-2e7d-4a8b-e645-7115f0a3c10e"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "0    2984486\n",
+              "1    1015514\n",
+              "Name: label, dtype: int64"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 31
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "sub_7.to_csv('sub_0.25.csv', line_terminator = '\\n')"
+      ],
+      "metadata": {
+        "id": "OplmOL0w-uU2"
+      },
+      "execution_count": null,
+      "outputs": []
+    }
+  ]
+}
